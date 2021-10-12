@@ -1,0 +1,54 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "es-bench.fullname" . }}
+  labels:
+    {{- include "es-bench.labels" . | nindent 4 }}
+spec:
+  replicas: {{ .Values.replicaCount }}
+  selector:
+    matchLabels:
+      {{- include "es-bench.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "es-bench.selectorLabels" . | nindent 8 }}
+      annotations:
+        prometheus.io/job: {{ $.Chart.Name }}
+        prometheus.io/scrape: 'true'
+        prometheus.io/port: '8000'
+    spec:
+    {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+    {{- end }}
+      serviceAccountName: {{ include "es-bench.serviceAccountName" . }}
+      securityContext:
+        {{- toYaml .Values.podSecurityContext | nindent 8 }}
+      containers:
+        - name: {{ .Chart.Name }}
+          securityContext:
+              {{- toYaml .Values.securityContext | nindent 12 }}
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          command: ["es-bench"]
+          #args: ["--env", "production", "--es-password", "{{ .Values.args.esPassword }}", "manager", "--records", "{{ .Values.args.records }}", "--pf", "{{ .Values.args.pf }}", "--index", "{{ .Values.args.index }}", "--bulk-actions", "{{ .Values.args.bulkActions }}", "--flush-interval", "{{ .Values.args.flushInterval }}"]
+          args: ["--env", "production", "--es-password", "{{ .Values.args.esPassword }}", "query", "--records", "{{ .Values.args.records }}", "--pf", "{{ .Values.args.pf }}", "--index", "{{ .Values.args.index }}"]
+          ports:
+            - name: metrics
+              containerPort: 8000
+              protocol: TCP
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+    {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+    {{- end }}
+    {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+    {{- end }}

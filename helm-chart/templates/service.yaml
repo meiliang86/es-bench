@@ -1,0 +1,25 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "es-bench.fullname" . }}
+  labels:
+    {{- include "es-bench.labels" . | nindent 4 }}
+    prometheus.io/job: {{ $.Chart.Name }}
+    prometheus.io/scrape: 'true'
+    prometheus.io/scheme: http
+    prometheus.io/port: "8000"
+    app.kubernetes.io/headless: 'true'
+spec:
+  type: ClusterIP
+  clusterIP: None
+  ports:
+    - port: {{ .Values.service.port }}
+      targetPort: http
+      protocol: TCP
+      name: http
+    - port: 8000
+      targetPort: metrics
+      protocol: TCP
+      name: metrics
+  selector:
+    {{- include "es-bench.selectorLabels" . | nindent 4 }}

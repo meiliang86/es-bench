@@ -1,0 +1,23 @@
+elasticsearch:
+  version: "v7"
+  logLevel: "error"
+  url:
+    scheme: "https"
+    host: "search-es-bench-wgxecm3cqmq6rpy5b4t3jvxaqm.us-west-2.es.amazonaws.com"
+  username: "temporaltech"
+  password: ""
+  indices:
+    visibility: "temporal_es_bench_v1"
+
+processor:
+  indexConcurrency: 100
+  numOfWorkers: 4
+  bulkActions: 500
+  bulkSize: 65777216
+  flushInterval: 1s
+  ackTimeout: 1m
+
+metrics:
+  prometheus:
+    timerType: "histogram"
+    listenAddress: "0.0.0.0:8000"

@@ -1,0 +1,21 @@
+elasticsearch:
+  version: "v7"
+  logLevel: "error"
+  url:
+    scheme: "http"
+    host: "127.0.0.1:9200"
+  indices:
+    visibility: "temporal_es_bench_v1"
+
+processor:
+  indexConcurrency: 100
+  numOfWorkers: 1
+  bulkActions: 500
+  bulkSize: 16777216
+  flushInterval: 1s
+  ackTimeout: 60s
+
+metrics:
+  prometheus:
+    timerType: "histogram"
+    listenAddress: "0.0.0.0:8000"

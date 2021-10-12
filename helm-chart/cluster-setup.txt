@@ -1,0 +1,19 @@
+1. Login to aws:
+    aws sso login
+
+2. From the helm-chart-experiments repo run:
+    make eks-cluster-create EKS_INSTANCE_SIZE=m5a.large EKS_ENV_NAME=alex-test-cluster EKS_MACHINE_COUNT=4
+
+which is the same as
+    terraform init
+    terraform apply -auto-approve -var 'machine_count=4' -var 'envname=alex-test-cluster' -var 'instancesize=m5a.large'
+    aws eks --region $(terraform output -raw region) update-kubeconfig --name $(terraform output -raw cluster_id)
+
+3. Install prom/grafana from the helm-chart-experiments repo:
+    cd jsonnet
+    TRACE=1 MANIFEST_DIR=manifests EKS_CLUSTER_ID=alex-test-cluster-eks-YJmchK ./build_jsonnet.sh alex-test-cluster
+    kubectl apply -f manifests/setup
+    kubectl apply -f manifests
+
+4. Install bench tool from the root of this repo:
+    helm install es-bench helm-chart --set args.esPassword=<your ES password>
