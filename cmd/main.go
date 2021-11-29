@@ -230,7 +230,7 @@ func buildCLI() *cli.App {
 		// },
 
 		{
-			Name: "ingest-data",
+			Name: "ingest",
 			Flags: []cli.Flag{
 				&cli.StringFlag{
 					Name:  "index-name",
@@ -241,12 +241,13 @@ func buildCLI() *cli.App {
 				&cli.IntFlag{
 					Name:  "total-records",
 					Aliases: []string{"tr"},
-					Value: 1_000_000,
+					Value: 100,
 					Usage: "records count",
 				},
 				&cli.IntFlag{
-					Name:  "pf",
-					Value: 1_000,
+					Name:  "parallel-factor",
+					Aliases: []string{"pf"},
+					Value: 10,
 					Usage: "parallel factor",
 				},
 				&cli.IntFlag{
@@ -263,7 +264,7 @@ func buildCLI() *cli.App {
 				indexName := c.String("index-name")
 				b := bench.NewBench(cfg, done, indexName)
 				recordCount := c.Int("total-records")
-				parallelFactor := c.Int("pf")
+				parallelFactor := c.Int("parallel-factor")
 				return b.IngestData(recordCount, parallelFactor)
 			},
 		},
@@ -279,7 +280,7 @@ func buildCLI() *cli.App {
 				&cli.IntFlag{
 					Name:  "total-records",
 					Aliases: []string{"tr"},
-					Value: 1_000_000,
+					Value: 100,
 					Usage: "records count",
 				},
 				&cli.StringFlag{
@@ -288,8 +289,9 @@ func buildCLI() *cli.App {
 					Usage: "index to query",
 				},
 				&cli.IntFlag{
-					Name:  "pf",
-					Value: 200,
+					Name:  "parallel-factor",
+					Aliases: []string{"pf"},
+					Value: 1,
 					Usage: "parallel factor",
 				},
 			},
@@ -298,7 +300,7 @@ func buildCLI() *cli.App {
 				indexName := c.String("index-name")
 				b := bench.NewBench(cfg, done, indexName)
 				recordCount := c.Int("total-records")
-				parallelFactor := c.Int("pf")
+				parallelFactor := c.Int("parallel-factor")
 				queryType := c.String("type")
 				return b.QueryData(recordCount, parallelFactor, queryType)
 			},
@@ -447,12 +449,6 @@ func generateESDoc(request *manager.RecordWorkflowExecutionStartedRequest, visib
 //
 //	return result, nil
 //}
-//
-//
-//
-//
-//
-//
 
 //
 //func deleteOldWorkflows(m manager.VisibilityManager) {

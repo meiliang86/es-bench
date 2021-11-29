@@ -1,7 +1,7 @@
 {
   "order": 0,
   "index_patterns": [
-    "temporal_es_bench_v1*"
+    "temporal_es_bench_test*"
   ],
   "settings": {
     "index": {

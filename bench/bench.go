@@ -74,7 +74,7 @@ func (b *Bench) IngestData(recordCount int, parallelFactor int) error {
 	wg.Add(parallelFactor)
 	for shardID := 0; shardID < parallelFactor; shardID++ {
 		go func(shardID int32) {
-			b.ingestionLoop(shardID, taskCount, visibilityManager,requestCount, deletedCount, errCount)
+			b.ingestionLoop(shardID, taskCount, visibilityManager, requestCount, deletedCount, errCount)
 			wg.Done()
 		}(int32(shardID))
 	}
@@ -152,6 +152,13 @@ func (b *Bench) QueryData(recordCount int, parallelFactor int, queryType string)
 		return cli.Exit(fmt.Sprintf("unable to create Elasticsearch visibility manager: %v", err), 1)
 	}
 
+	first, last, err := b.queryTimestampBoundary(visibilityManager)
+	if err != nil {
+		return cli.Exit(fmt.Sprintf("failed to get first and last timestamp: %v", err), 1)
+	} else {
+		fmt.Printf("=== First timestamp %v last timestamp %v ===\n", first, last)
+	}
+
 	start := time.Now()
 	wg := &sync.WaitGroup{}
 
@@ -168,7 +175,14 @@ func (b *Bench) QueryData(recordCount int, parallelFactor int, queryType string)
 
 	for shardID := 0; shardID < parallelFactor; shardID++ {
 		go func(shardID int) {
-			b.queryLoop(taskIDs, pageSize, queryType, visibilityManager, requestCount, errCount)
+			queryParams := &queryParams{
+				taskIDs:        taskIDs,
+				pageSize:       pageSize,
+				queryType:      queryType,
+				firstTimestamp: first,
+				lastTimestamp:  last,
+			}
+			b.queryLoop(queryParams, visibilityManager, requestCount, errCount)
 			wg.Done()
 		}(shardID)
 	}
@@ -188,33 +202,47 @@ func (b *Bench) QueryData(recordCount int, parallelFactor int, queryType string)
 	return nil
 }
 
+type queryParams struct {
+	taskIDs        []int
+	pageSize       int
+	queryType      string
+	firstTimestamp *time.Time
+	lastTimestamp  *time.Time
+}
+
 func (b *Bench) queryLoop(
-	taskIDs []int,
-	pageSize int,
-	queryType string,
+	queryParams *queryParams,
 	visibilityManager manager.VisibilityManager,
 	requestCount *atomic.Int32,
 	errCount *atomic.Int32) {
-	for taskID := range taskIDs {
+	for taskID := range queryParams.taskIDs {
 		// request := &manager.ListWorkflowExecutionsRequestV2{
 		// 	NamespaceID: namespaceID,
 		// 	Query:       fmt.Sprintf(`CustomKeywordField="search-string-%d-%d"`, shardID, taskID),
 		// 	PageSize: 1,
 		// }
 		_ = taskID
+
+		totalDuration := queryParams.lastTimestamp.Sub(*queryParams.firstTimestamp)
+		queryStart := queryParams.firstTimestamp.Add(time.Duration(rand.Int63n(int64(totalDuration))))
+		queryEnd := queryStart.Add(24 * time.Hour)
+		queryStr := fmt.Sprintf(`StartTime between %v and %v`, queryStart.UnixNano(), queryEnd.UnixNano())
+		fmt.Println(queryStr)
 		request := &manager.ListWorkflowExecutionsRequestV2{
 			NamespaceID: namespaceID,
-			PageSize:    pageSize,
-			Query: `WorkflowType = "test-workflow"`,
+			PageSize:    queryParams.pageSize,
+			Query:       queryStr,
 		}
 
 		var err error
-		if queryType == "list" {
-			_, err = visibilityManager.ListWorkflowExecutions(request)
-		} else if queryType == "scan" {
+		var resp *manager.ListWorkflowExecutionsResponse
+		if queryParams.queryType == "list" {
+			resp, err = visibilityManager.ListWorkflowExecutions(request)
+			fmt.Printf("Returned %v records.\n", len(resp.Executions))
+		} else if queryParams.queryType == "scan" {
 			_, err = visibilityManager.ScanWorkflowExecutions(request)
 		} else {
-			panic("unsupported query type " + queryType)
+			panic("unsupported query type " + queryParams.queryType)
 		}
 
 		requestCount.Inc()
@@ -231,6 +259,32 @@ func (b *Bench) queryLoop(
 		default:
 		}
 	}
+}
+
+func (b *Bench) queryTimestampBoundary(visibilityManager manager.VisibilityManager) (*time.Time, *time.Time, error) {
+	req1 := &manager.ListWorkflowExecutionsRequestV2{
+		NamespaceID: namespaceID,
+		PageSize:    1,
+		Query:       "Order by StartTime ASC",
+	}
+
+	resp1, err := visibilityManager.ListWorkflowExecutions(req1)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	req2 := &manager.ListWorkflowExecutionsRequestV2{
+		NamespaceID: namespaceID,
+		PageSize:    1,
+		Query:       "Order by StartTime Desc",
+	}
+
+	resp2, err := visibilityManager.ListWorkflowExecutions(req2)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	return resp1.Executions[0].StartTime, resp2.Executions[0].StartTime, nil
 }
 
 func (b *Bench) CreateIndex(indexName string) error {
