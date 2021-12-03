@@ -1,7 +1,7 @@
 install:
 	go build -o es-bench cmd/main.go 
-	docker build -t alexshtin/es-bench:$(IMAGE_TAG) .
-	docker push alexshtin/es-bench:$(IMAGE_TAG)
+	docker build -t meiliang86/es-bench:$(IMAGE_TAG) .
+	docker push meiliang86/es-bench:$(IMAGE_TAG)
 	helm install es-bench helm-chart
 
 uninstall:

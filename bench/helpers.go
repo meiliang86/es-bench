@@ -4,6 +4,7 @@ import (
 	"math/rand"
 	"time"
 
+	"go.temporal.io/server/common/namespace"
 	"github.com/olivere/elastic/v7"
 	"github.com/pborman/uuid"
 	commonpb "go.temporal.io/api/common/v1"
@@ -23,10 +24,10 @@ func randString(length int) string {
 	return string(b)
 }
 
-func generateRecordWorkflowExecutionStartedRequest(shardID int32, taskID int) *manager.RecordWorkflowExecutionStartedRequest {
+func generateRecordWorkflowExecutionStartedRequest(shardID int32, taskID int, namespaceID string) *manager.RecordWorkflowExecutionStartedRequest {
 	request := &manager.RecordWorkflowExecutionStartedRequest{
 		VisibilityRequestBase: &manager.VisibilityRequestBase{
-			NamespaceID: namespaceID,
+			NamespaceID: namespace.ID(namespaceID),
 			Execution: commonpb.WorkflowExecution{
 				WorkflowId: randString(10),
 				RunId:      uuid.New(),

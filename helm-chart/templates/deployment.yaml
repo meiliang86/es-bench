@@ -33,7 +33,8 @@ spec:
           imagePullPolicy: {{ .Values.image.pullPolicy }}
           command: ["es-bench"]
           #args: ["--env", "production", "--es-password", "{{ .Values.args.esPassword }}", "manager", "--records", "{{ .Values.args.records }}", "--pf", "{{ .Values.args.pf }}", "--index", "{{ .Values.args.index }}", "--bulk-actions", "{{ .Values.args.bulkActions }}", "--flush-interval", "{{ .Values.args.flushInterval }}"]
-          args: ["--env", "production", "--es-password", "{{ .Values.args.esPassword }}", "query", "--records", "{{ .Values.args.records }}", "--pf", "{{ .Values.args.pf }}", "--index", "{{ .Values.args.index }}"]
+          args: ["--env", "production", "--es-password", "{{ .Values.args.esPassword }}", "query", "--ns", "{{ .Values.args.ns }}", "--tr", "{{ .Values.args.records }}", "--pf", "{{ .Values.args.pf }}", "--in", "{{ .Values.args.index }}"]
+          #args: ["idle"]
           ports:
             - name: metrics
               containerPort: 8000

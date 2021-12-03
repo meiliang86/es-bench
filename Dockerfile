@@ -1,6 +1,7 @@
 FROM debian:stable-slim
 RUN apt update
 RUN apt -y install ca-certificates
+RUN apt -y install curl
 
 WORKDIR /etc/es-bench
 COPY ./es-bench /usr/local/bin/

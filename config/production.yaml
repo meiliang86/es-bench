@@ -3,11 +3,11 @@ elasticsearch:
   logLevel: "error"
   url:
     scheme: "https"
-    host: "search-es-bench-wgxecm3cqmq6rpy5b4t3jvxaqm.us-west-2.es.amazonaws.com"
-  username: "temporaltech"
+    host: "vpc-hollywood-egvqsfkoo5tbou74x7oto6dk5a.us-east-1.es.amazonaws.com"
+  username: "temporal"
   password: ""
   indices:
-    visibility: "temporal_es_bench_v1"
+    visibility: "temporal_es_bench_v1_hollywood"
 
 processor:
   indexConcurrency: 100

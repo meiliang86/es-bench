@@ -5,8 +5,8 @@
 replicaCount: 16
 
 image:
-  repository: alexshtin/es-bench
-  tag: 0.0.15
+  repository: meiliang86/es-bench
+  tag: latest
   pullPolicy: IfNotPresent
 
 imagePullSecrets: []
@@ -17,9 +17,8 @@ args:
   esPassword: "pass it using command line"
   records: "100000"
   pf: "2"
-  index: "temporal_es_bench_v1_test50"
-  bulkActions: "500"
-  flushInterval: "1s"
+  index: "temporal_visibility_v1_hollywood"
+  ns: "9cb5b058-961f-4dbb-bde4-f79b735dd580"
 
 serviceAccount:
   # Specifies whether a service account should be created

@@ -10,6 +10,7 @@ import (
 	"sync"
 	"time"
 
+	"go.temporal.io/server/common/namespace"
 	"github.com/temporalio/es-bench/config"
 	"github.com/urfave/cli/v2"
 	"go.temporal.io/server/common/dynamicconfig"
@@ -23,25 +24,22 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-const (
-	namespaceID = "default"
-	workflowID  = "es-bench-workflow"
-)
-
-func NewBench(cfg *config.Config, done <-chan bool, index string) *Bench {
+func NewBench(cfg *config.Config, done <-chan bool, index string, namespaceID string) *Bench {
 	return &Bench{
-		cfg:       cfg,
-		done:      done,
-		indexName: index,
-		logger:    tlog.NewZapLogger(tlog.BuildZapLogger(cfg.Log)),
+		cfg:         cfg,
+		done:        done,
+		indexName:   index,
+		namespaceID: namespaceID,
+		logger:      tlog.NewZapLogger(tlog.BuildZapLogger(cfg.Log)),
 	}
 }
 
 type Bench struct {
-	indexName string
-	logger    tlog.Logger
-	cfg       *config.Config
-	done      <-chan bool
+	indexName   string
+	namespaceID string
+	logger      tlog.Logger
+	cfg         *config.Config
+	done        <-chan bool
 }
 
 func (b *Bench) IngestData(recordCount int, parallelFactor int) error {
@@ -117,7 +115,7 @@ func (b *Bench) ingestionLoop(
 				}
 			}
 		} else {
-			request := generateRecordWorkflowExecutionStartedRequest(shardID, taskID)
+			request := generateRecordWorkflowExecutionStartedRequest(shardID, taskID, b.namespaceID)
 
 			for {
 				// Emulate task processor which retries forever.
@@ -146,17 +144,17 @@ func (b *Bench) ingestionLoop(
 	}
 }
 
-func (b *Bench) QueryData(recordCount int, parallelFactor int, queryType string) error {
+func (b *Bench) QueryData(recordCount int, parallelFactor int, queryType string, timeRange time.Duration, namespaceID string) error {
 	visibilityManager, err := b.newVisibilityManager()
 	if err != nil {
 		return cli.Exit(fmt.Sprintf("unable to create Elasticsearch visibility manager: %v", err), 1)
 	}
 
-	first, last, err := b.queryTimestampBoundary(visibilityManager)
+	first, last, err := b.queryTimestampBoundary(visibilityManager, namespaceID)
 	if err != nil {
 		return cli.Exit(fmt.Sprintf("failed to get first and last timestamp: %v", err), 1)
 	} else {
-		fmt.Printf("=== First timestamp %v last timestamp %v ===\n", first, last)
+		fmt.Printf("=== First timestamp %v last timestamp %v ===\n", first.Format(time.RFC3339), last.Format(time.RFC3339))
 	}
 
 	start := time.Now()
@@ -166,7 +164,7 @@ func (b *Bench) QueryData(recordCount int, parallelFactor int, queryType string)
 
 	taskIDs := rand.Perm(recordCount / parallelFactor)
 
-	fmt.Printf("=== Input: %d recordCount, with parallel factor: %d\n", recordCount, parallelFactor)
+	fmt.Printf("=== Testing config: %d recordCount, parallel factor: %d time range: %v\n", recordCount, parallelFactor, timeRange)
 
 	requestCount := &atomic.Int32{}
 	errCount := &atomic.Int32{}
@@ -176,11 +174,13 @@ func (b *Bench) QueryData(recordCount int, parallelFactor int, queryType string)
 	for shardID := 0; shardID < parallelFactor; shardID++ {
 		go func(shardID int) {
 			queryParams := &queryParams{
-				taskIDs:        taskIDs,
-				pageSize:       pageSize,
-				queryType:      queryType,
-				firstTimestamp: first,
-				lastTimestamp:  last,
+				taskIDs:            taskIDs,
+				pageSize:           pageSize,
+				queryType:          queryType,
+				firstTimestamp:     first,
+				lastTimestamp:      last,
+				timeFilterDuration: timeRange,
+				namespaceID:        namespaceID,
 			}
 			b.queryLoop(queryParams, visibilityManager, requestCount, errCount)
 			wg.Done()
@@ -203,11 +203,13 @@ func (b *Bench) QueryData(recordCount int, parallelFactor int, queryType string)
 }
 
 type queryParams struct {
-	taskIDs        []int
-	pageSize       int
-	queryType      string
-	firstTimestamp *time.Time
-	lastTimestamp  *time.Time
+	taskIDs            []int
+	pageSize           int
+	queryType          string
+	firstTimestamp     *time.Time
+	lastTimestamp      *time.Time
+	timeFilterDuration time.Duration
+	namespaceID        string
 }
 
 func (b *Bench) queryLoop(
@@ -215,6 +217,7 @@ func (b *Bench) queryLoop(
 	visibilityManager manager.VisibilityManager,
 	requestCount *atomic.Int32,
 	errCount *atomic.Int32) {
+	processed := 0
 	for taskID := range queryParams.taskIDs {
 		// request := &manager.ListWorkflowExecutionsRequestV2{
 		// 	NamespaceID: namespaceID,
@@ -222,23 +225,23 @@ func (b *Bench) queryLoop(
 		// 	PageSize: 1,
 		// }
 		_ = taskID
+		processed++
 
 		totalDuration := queryParams.lastTimestamp.Sub(*queryParams.firstTimestamp)
 		queryStart := queryParams.firstTimestamp.Add(time.Duration(rand.Int63n(int64(totalDuration))))
-		queryEnd := queryStart.Add(24 * time.Hour)
+		queryEnd := queryStart.Add(queryParams.timeFilterDuration)
 		queryStr := fmt.Sprintf(`StartTime between %v and %v`, queryStart.UnixNano(), queryEnd.UnixNano())
-		fmt.Println(queryStr)
 		request := &manager.ListWorkflowExecutionsRequestV2{
-			NamespaceID: namespaceID,
+			NamespaceID: namespace.ID(queryParams.namespaceID),
 			PageSize:    queryParams.pageSize,
 			Query:       queryStr,
 		}
 
 		var err error
-		var resp *manager.ListWorkflowExecutionsResponse
+		//var resp *manager.ListWorkflowExecutionsResponse
 		if queryParams.queryType == "list" {
-			resp, err = visibilityManager.ListWorkflowExecutions(request)
-			fmt.Printf("Returned %v records.\n", len(resp.Executions))
+			_, err = visibilityManager.ListWorkflowExecutions(request)
+			//fmt.Printf("Returned %v records.\n", len(resp.Executions))
 		} else if queryParams.queryType == "scan" {
 			_, err = visibilityManager.ScanWorkflowExecutions(request)
 		} else {
@@ -261,9 +264,9 @@ func (b *Bench) queryLoop(
 	}
 }
 
-func (b *Bench) queryTimestampBoundary(visibilityManager manager.VisibilityManager) (*time.Time, *time.Time, error) {
+func (b *Bench) queryTimestampBoundary(visibilityManager manager.VisibilityManager, namespaceID string) (*time.Time, *time.Time, error) {
 	req1 := &manager.ListWorkflowExecutionsRequestV2{
-		NamespaceID: namespaceID,
+		NamespaceID: namespace.ID(namespaceID),
 		PageSize:    1,
 		Query:       "Order by StartTime ASC",
 	}
@@ -274,7 +277,7 @@ func (b *Bench) queryTimestampBoundary(visibilityManager manager.VisibilityManag
 	}
 
 	req2 := &manager.ListWorkflowExecutionsRequestV2{
-		NamespaceID: namespaceID,
+		NamespaceID: namespace.ID(namespaceID),
 		PageSize:    1,
 		Query:       "Order by StartTime Desc",
 	}

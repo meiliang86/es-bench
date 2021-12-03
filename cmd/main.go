@@ -238,6 +238,12 @@ func buildCLI() *cli.App {
 					Value: "temporal_es_bench_test",
 					Usage: "index name",
 				},
+				&cli.StringFlag{
+					Name:  "namespace-id",
+					Aliases: []string{"ns"},
+					Value: "default",
+					Usage: "namespace id",
+				},
 				&cli.IntFlag{
 					Name:  "total-records",
 					Aliases: []string{"tr"},
@@ -262,7 +268,8 @@ func buildCLI() *cli.App {
 			Action: func(c *cli.Context) error {
 				cfg := loadConfig(c)
 				indexName := c.String("index-name")
-				b := bench.NewBench(cfg, done, indexName)
+				namespaceID := c.String("namespace-id")
+				b := bench.NewBench(cfg, done, indexName, namespaceID)
 				recordCount := c.Int("total-records")
 				parallelFactor := c.Int("parallel-factor")
 				return b.IngestData(recordCount, parallelFactor)
@@ -276,6 +283,12 @@ func buildCLI() *cli.App {
 					Aliases: []string{"in"},
 					Value: "temporal_es_bench_test",
 					Usage: "index name",
+				},
+				&cli.StringFlag{
+					Name:  "namespace-id",
+					Aliases: []string{"ns"},
+					Value: "default",
+					Usage: "namespace id",
 				},
 				&cli.IntFlag{
 					Name:  "total-records",
@@ -294,18 +307,25 @@ func buildCLI() *cli.App {
 					Value: 1,
 					Usage: "parallel factor",
 				},
+				&cli.IntFlag{
+					Name:  "time-range-secs",
+					Aliases: []string{"trs"},
+					Value: 60,
+					Usage: "time filter range in seconds",
+				},
 			},
 			Action: func(c *cli.Context) error {
 				cfg := loadConfig(c)
 				indexName := c.String("index-name")
-				b := bench.NewBench(cfg, done, indexName)
+				namespaceID := c.String("namespace-id")
+				b := bench.NewBench(cfg, done, indexName, namespaceID)
 				recordCount := c.Int("total-records")
 				parallelFactor := c.Int("parallel-factor")
 				queryType := c.String("type")
-				return b.QueryData(recordCount, parallelFactor, queryType)
+				timeRange := time.Duration(c.Int("time-range-secs")) * time.Second
+				return b.QueryData(recordCount, parallelFactor, queryType, timeRange, namespaceID)
 			},
 		},
-
 		{
 			Name: "index",
 			Subcommands: []*cli.Command{
@@ -321,7 +341,7 @@ func buildCLI() *cli.App {
 					Action: func(c *cli.Context) error {
 						cfg := loadConfig(c)
 						templatePath := c.String("template-path")
-						b := bench.NewBench(cfg, done, templatePath)
+						b := bench.NewBench(cfg, done, templatePath, "")
 						err := b.CreateSchemaTemplate(templatePath)
 						if err != nil {
 							fmt.Printf("Failed to create index template: %v\n", err)
@@ -343,7 +363,7 @@ func buildCLI() *cli.App {
 					Action: func(c *cli.Context) error {
 						cfg := loadConfig(c)
 						indexName := c.String("index-name")
-						b := bench.NewBench(cfg, done, indexName)
+						b := bench.NewBench(cfg, done, indexName, "")
 						return b.CreateIndex(indexName)
 					},
 				},
@@ -359,10 +379,17 @@ func buildCLI() *cli.App {
 					Action: func(c *cli.Context) error {
 						cfg := loadConfig(c)
 						indexName := c.String("index-name")
-						b := bench.NewBench(cfg, done, indexName)
+						b := bench.NewBench(cfg, done, indexName, "")
 						return b.DeleteIndex(indexName)
 					},
 				},
+			},
+		},
+		{
+			Name: "idle",
+			Action: func(context *cli.Context) error {
+				<-done
+				return nil
 			},
 		},
 	}
