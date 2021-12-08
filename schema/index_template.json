@@ -1,12 +1,12 @@
 {
   "order": 0,
   "index_patterns": [
-    "temporal_es_bench_test*"
+    "temporal_visibility_v1_hollywood_20"
   ],
   "settings": {
     "index": {
-      "number_of_shards": "1",
-      "number_of_replicas": "0",
+      "number_of_shards": "20",
+      "number_of_replicas": "2",
       "search.idle.after": "365d"
     }
   },

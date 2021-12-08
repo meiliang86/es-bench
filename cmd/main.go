@@ -268,11 +268,11 @@ func buildCLI() *cli.App {
 			Action: func(c *cli.Context) error {
 				cfg := loadConfig(c)
 				indexName := c.String("index-name")
-				namespaceID := c.String("namespace-id")
-				b := bench.NewBench(cfg, done, indexName, namespaceID)
+				b := bench.NewBench(cfg, done, indexName)
 				recordCount := c.Int("total-records")
 				parallelFactor := c.Int("parallel-factor")
-				return b.IngestData(recordCount, parallelFactor)
+				namespaceID := c.String("namespace-id")
+				return b.IngestData(recordCount, parallelFactor, namespaceID)
 			},
 		},
 		{
@@ -318,12 +318,14 @@ func buildCLI() *cli.App {
 				cfg := loadConfig(c)
 				indexName := c.String("index-name")
 				namespaceID := c.String("namespace-id")
-				b := bench.NewBench(cfg, done, indexName, namespaceID)
+				b := bench.NewBench(cfg, done, indexName)
 				recordCount := c.Int("total-records")
 				parallelFactor := c.Int("parallel-factor")
 				queryType := c.String("type")
 				timeRange := time.Duration(c.Int("time-range-secs")) * time.Second
-				return b.QueryData(recordCount, parallelFactor, queryType, timeRange, namespaceID)
+				b.QueryData(recordCount, parallelFactor, queryType, timeRange, namespaceID)
+				<-done
+				return nil
 			},
 		},
 		{
@@ -341,7 +343,7 @@ func buildCLI() *cli.App {
 					Action: func(c *cli.Context) error {
 						cfg := loadConfig(c)
 						templatePath := c.String("template-path")
-						b := bench.NewBench(cfg, done, templatePath, "")
+						b := bench.NewBench(cfg, done, templatePath)
 						err := b.CreateSchemaTemplate(templatePath)
 						if err != nil {
 							fmt.Printf("Failed to create index template: %v\n", err)
@@ -363,7 +365,7 @@ func buildCLI() *cli.App {
 					Action: func(c *cli.Context) error {
 						cfg := loadConfig(c)
 						indexName := c.String("index-name")
-						b := bench.NewBench(cfg, done, indexName, "")
+						b := bench.NewBench(cfg, done, indexName)
 						return b.CreateIndex(indexName)
 					},
 				},
@@ -379,7 +381,7 @@ func buildCLI() *cli.App {
 					Action: func(c *cli.Context) error {
 						cfg := loadConfig(c)
 						indexName := c.String("index-name")
-						b := bench.NewBench(cfg, done, indexName, "")
+						b := bench.NewBench(cfg, done, indexName)
 						return b.DeleteIndex(indexName)
 					},
 				},

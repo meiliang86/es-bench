@@ -7,7 +7,7 @@ elasticsearch:
   username: "temporal"
   password: ""
   indices:
-    visibility: "temporal_es_bench_v1_hollywood"
+    visibility: "temporal_es_bench_v1_hollywood_20"
 
 processor:
   indexConcurrency: 100

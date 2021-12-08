@@ -10,12 +10,12 @@ import (
 	"sync"
 	"time"
 
-	"go.temporal.io/server/common/namespace"
 	"github.com/temporalio/es-bench/config"
 	"github.com/urfave/cli/v2"
 	"go.temporal.io/server/common/dynamicconfig"
 	tlog "go.temporal.io/server/common/log"
 	"go.temporal.io/server/common/metrics"
+	"go.temporal.io/server/common/namespace"
 	"go.temporal.io/server/common/persistence/visibility"
 	"go.temporal.io/server/common/persistence/visibility/manager"
 	"go.temporal.io/server/common/persistence/visibility/store/elasticsearch/client"
@@ -24,25 +24,23 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-func NewBench(cfg *config.Config, done <-chan bool, index string, namespaceID string) *Bench {
+func NewBench(cfg *config.Config, done <-chan bool, index string) *Bench {
 	return &Bench{
 		cfg:         cfg,
 		done:        done,
 		indexName:   index,
-		namespaceID: namespaceID,
 		logger:      tlog.NewZapLogger(tlog.BuildZapLogger(cfg.Log)),
 	}
 }
 
 type Bench struct {
 	indexName   string
-	namespaceID string
 	logger      tlog.Logger
 	cfg         *config.Config
 	done        <-chan bool
 }
 
-func (b *Bench) IngestData(recordCount int, parallelFactor int) error {
+func (b *Bench) IngestData(recordCount int, parallelFactor int, namespaceID string) error {
 	if b.indexName == "" {
 		indexSuffix := randString(5)
 		b.indexName = fmt.Sprintf("%s_%s", b.cfg.Elasticsearch.Indices[client.VisibilityAppName], indexSuffix)
@@ -72,7 +70,7 @@ func (b *Bench) IngestData(recordCount int, parallelFactor int) error {
 	wg.Add(parallelFactor)
 	for shardID := 0; shardID < parallelFactor; shardID++ {
 		go func(shardID int32) {
-			b.ingestionLoop(shardID, taskCount, visibilityManager, requestCount, deletedCount, errCount)
+			b.ingestionLoop(shardID, taskCount, visibilityManager, requestCount, deletedCount, errCount, namespaceID)
 			wg.Done()
 		}(int32(shardID))
 	}
@@ -99,6 +97,7 @@ func (b *Bench) ingestionLoop(
 	requestCount *atomic.Int32,
 	deletedCount *atomic.Int32,
 	errCount *atomic.Int32,
+	namespaceID string,
 ) {
 	var lastStartReq *manager.RecordWorkflowExecutionStartedRequest
 	for taskID := 0; taskID < taskCount; taskID++ {
@@ -115,7 +114,7 @@ func (b *Bench) ingestionLoop(
 				}
 			}
 		} else {
-			request := generateRecordWorkflowExecutionStartedRequest(shardID, taskID, b.namespaceID)
+			request := generateRecordWorkflowExecutionStartedRequest(shardID, taskID, namespaceID)
 
 			for {
 				// Emulate task processor which retries forever.
@@ -137,7 +136,7 @@ func (b *Bench) ingestionLoop(
 
 		select {
 		case <-b.done:
-			fmt.Println("Done")
+			b.logger.Info("Done")
 			return
 		default:
 		}
@@ -164,7 +163,7 @@ func (b *Bench) QueryData(recordCount int, parallelFactor int, queryType string,
 
 	taskIDs := rand.Perm(recordCount / parallelFactor)
 
-	fmt.Printf("=== Testing config: %d recordCount, parallel factor: %d time range: %v\n", recordCount, parallelFactor, timeRange)
+	b.logger.Info(fmt.Sprintf("Testing config: total requests %d, parallel factor: %d, time range: %v\n", recordCount, parallelFactor, timeRange))
 
 	requestCount := &atomic.Int32{}
 	errCount := &atomic.Int32{}
@@ -191,13 +190,12 @@ func (b *Bench) QueryData(recordCount int, parallelFactor int, queryType string,
 	took := time.Since(start)
 	rps := float64(requestCount.Load()) / took.Seconds()
 
-	fmt.Printf("=== Input: %d recordCount, with parallel factor: %d\n", recordCount, parallelFactor)
-	fmt.Printf("=== Issued %d requests, with %d errors, %d results, took %v, RPS %f\n",
-		requestCount,
+	b.logger.Info(fmt.Sprintf("Result: Issued %d requests, with %d errors, %d results, took %v, RPS %f\n",
+		requestCount.Load(),
 		errCount.Load(),
 		foundCount.Load(),
 		took,
-		rps)
+		rps))
 
 	return nil
 }
@@ -252,7 +250,7 @@ func (b *Bench) queryLoop(
 
 		if err != nil {
 			errCount.Inc()
-			fmt.Println(err)
+			b.logger.Error(err.Error())
 		}
 
 		select {

@@ -7,7 +7,7 @@ replicaCount: 16
 image:
   repository: meiliang86/es-bench
   tag: latest
-  pullPolicy: IfNotPresent
+  pullPolicy: Always
 
 imagePullSecrets: []
 nameOverride: ""
@@ -15,10 +15,11 @@ fullnameOverride: ""
 
 args:
   esPassword: "pass it using command line"
-  records: "100000"
-  pf: "2"
-  index: "temporal_visibility_v1_hollywood"
+  records: "10000"
+  pf: "1"
+  index: "es_bench_v1_hollywood_20"
   ns: "9cb5b058-961f-4dbb-bde4-f79b735dd580"
+  timerange: "86400"
 
 serviceAccount:
   # Specifies whether a service account should be created
