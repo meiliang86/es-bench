@@ -6,9 +6,10 @@ require (
 	github.com/olivere/elastic/v7 v7.0.29
 	github.com/pborman/uuid v1.2.1
 	github.com/urfave/cli/v2 v2.3.0
-	go.temporal.io/api v1.6.1-0.20211110205628-60c98e9cbfe2
+	go.temporal.io/api v1.6.1-0.20211123053254-cae1d6470032
 	go.temporal.io/server v1.0.0
 	go.uber.org/atomic v1.9.0
+	golang.org/x/time v0.0.0-20210723032227-1f47c861a9ac
 	gopkg.in/yaml.v3 v3.0.0-20210107192922-496545a6307b
 )
 
@@ -71,22 +72,22 @@ require (
 	go.opentelemetry.io/otel/sdk/metric v0.24.0 // indirect
 	go.opentelemetry.io/otel/trace v1.1.0 // indirect
 	go.temporal.io/sdk v1.11.0 // indirect
+	go.uber.org/dig v1.13.0 // indirect
+	go.uber.org/fx v1.14.2 // indirect
 	go.uber.org/multierr v1.7.0 // indirect
 	go.uber.org/zap v1.19.1 // indirect
-	golang.org/x/net v0.0.0-20211109214657-ef0fda0de508 // indirect
+	golang.org/x/net v0.0.0-20211118161319-6a13c67c3ce4 // indirect
 	golang.org/x/oauth2 v0.0.0-20211005180243-6b3c2da341f1 // indirect
-	golang.org/x/sys v0.0.0-20211110154304-99a53858aa08 // indirect
+	golang.org/x/sys v0.0.0-20211117180635-dee7805ff2e1 // indirect
 	golang.org/x/text v0.3.7 // indirect
-	golang.org/x/time v0.0.0-20210723032227-1f47c861a9ac // indirect
 	golang.org/x/xerrors v0.0.0-20200804184101-5ec99f83aff1 // indirect
 	google.golang.org/api v0.59.0 // indirect
 	google.golang.org/appengine v1.6.7 // indirect
-	google.golang.org/genproto v0.0.0-20211104193956-4c6863e31247 // indirect
+	google.golang.org/genproto v0.0.0-20211118181313-81c1377c94b1 // indirect
 	google.golang.org/grpc v1.42.0 // indirect
 	google.golang.org/protobuf v1.27.1 // indirect
 	gopkg.in/inf.v0 v0.9.1 // indirect
 	gopkg.in/validator.v2 v2.0.0-20210331031555-b37d688a7fb0 // indirect
-	gopkg.in/yaml.v2 v2.4.0 // indirect
 )
 
 replace go.temporal.io/server v1.0.0 => ../temporal

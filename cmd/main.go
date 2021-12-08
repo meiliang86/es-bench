@@ -307,11 +307,16 @@ func buildCLI() *cli.App {
 					Value: 1,
 					Usage: "parallel factor",
 				},
-				&cli.IntFlag{
-					Name:  "time-range-secs",
-					Aliases: []string{"trs"},
-					Value: 60,
-					Usage: "time filter range in seconds",
+				&cli.StringFlag{
+					Name:  "query-range",
+					Aliases: []string{"range"},
+					Value: "1h",
+					Usage: "start or close time filter in query",
+				},
+				&cli.StringFlag{
+					Name:  "rps",
+					Value: "1",
+					Usage: "rps",
 				},
 			},
 			Action: func(c *cli.Context) error {
@@ -322,8 +327,12 @@ func buildCLI() *cli.App {
 				recordCount := c.Int("total-records")
 				parallelFactor := c.Int("parallel-factor")
 				queryType := c.String("type")
-				timeRange := time.Duration(c.Int("time-range-secs")) * time.Second
-				b.QueryData(recordCount, parallelFactor, queryType, timeRange, namespaceID)
+				timeRange, err := time.ParseDuration("query-range")
+				if err != nil {
+					return err
+				}
+				rpsLimit := c.Int("rps")
+				b.QueryData(recordCount, parallelFactor, queryType, timeRange, namespaceID, rpsLimit)
 				<-done
 				return nil
 			},

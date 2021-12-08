@@ -15,11 +15,13 @@ fullnameOverride: ""
 
 args:
   esPassword: "pass it using command line"
-  records: "10000"
+  records: "1200"
   pf: "1"
   index: "es_bench_v1_hollywood_20"
   ns: "9cb5b058-961f-4dbb-bde4-f79b735dd580"
-  timerange: "86400"
+  range: "1d"
+  rps: "2"
+  type: "list-closed"
 
 serviceAccount:
   # Specifies whether a service account should be created

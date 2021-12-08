@@ -10,6 +10,7 @@ import (
 	"sync"
 	"time"
 
+	"golang.org/x/time/rate"
 	"github.com/temporalio/es-bench/config"
 	"github.com/urfave/cli/v2"
 	"go.temporal.io/server/common/dynamicconfig"
@@ -38,6 +39,7 @@ type Bench struct {
 	logger      tlog.Logger
 	cfg         *config.Config
 	done        <-chan bool
+	rateLimiter *rate.Limiter
 }
 
 func (b *Bench) IngestData(recordCount int, parallelFactor int, namespaceID string) error {
@@ -143,7 +145,7 @@ func (b *Bench) ingestionLoop(
 	}
 }
 
-func (b *Bench) QueryData(recordCount int, parallelFactor int, queryType string, timeRange time.Duration, namespaceID string) error {
+func (b *Bench) QueryData(recordCount int, parallelFactor int, queryType string, timeRange time.Duration, namespaceID string, rpsLimit int) error {
 	visibilityManager, err := b.newVisibilityManager()
 	if err != nil {
 		return cli.Exit(fmt.Sprintf("unable to create Elasticsearch visibility manager: %v", err), 1)
@@ -154,8 +156,10 @@ func (b *Bench) QueryData(recordCount int, parallelFactor int, queryType string,
 		return cli.Exit(fmt.Sprintf("failed to get first and last timestamp: %v", err), 1)
 	} else {
 		fmt.Printf("=== First timestamp %v last timestamp %v ===\n", first.Format(time.RFC3339), last.Format(time.RFC3339))
+		fmt.Printf("=== Index name: %v Query type: %v ===\n", b.indexName, queryType)
 	}
 
+	b.rateLimiter = rate.NewLimiter(rate.Limit(rpsLimit), rpsLimit)
 	start := time.Now()
 	wg := &sync.WaitGroup{}
 
@@ -188,14 +192,14 @@ func (b *Bench) QueryData(recordCount int, parallelFactor int, queryType string,
 
 	wg.Wait()
 	took := time.Since(start)
-	rps := float64(requestCount.Load()) / took.Seconds()
+	actualRPS := float64(requestCount.Load()) / took.Seconds()
 
 	b.logger.Info(fmt.Sprintf("Result: Issued %d requests, with %d errors, %d results, took %v, RPS %f\n",
 		requestCount.Load(),
 		errCount.Load(),
 		foundCount.Load(),
 		took,
-		rps))
+		actualRPS))
 
 	return nil
 }
@@ -215,6 +219,8 @@ func (b *Bench) queryLoop(
 	visibilityManager manager.VisibilityManager,
 	requestCount *atomic.Int32,
 	errCount *atomic.Int32) {
+	time.Sleep(time.Duration(rand.Intn(1000)) * time.Millisecond)
+
 	processed := 0
 	for taskID := range queryParams.taskIDs {
 		// request := &manager.ListWorkflowExecutionsRequestV2{
@@ -235,10 +241,31 @@ func (b *Bench) queryLoop(
 			Query:       queryStr,
 		}
 
+		b.rateLimiter.Wait(context.Background())
 		var err error
 		//var resp *manager.ListWorkflowExecutionsResponse
 		if queryParams.queryType == "list" {
 			_, err = visibilityManager.ListWorkflowExecutions(request)
+			//fmt.Printf("Returned %v records.\n", len(resp.Executions))
+		} else if queryParams.queryType == "list-open" {
+			listOpenReq := &manager.ListWorkflowExecutionsRequest{
+				NamespaceID:       namespace.ID(queryParams.namespaceID),
+				Namespace:         namespace.Name("test"),
+				PageSize:          queryParams.pageSize,
+				EarliestStartTime: queryStart,
+				LatestStartTime:   queryEnd,
+			}
+			_, err = visibilityManager.ListOpenWorkflowExecutions(listOpenReq)
+			//fmt.Printf("Returned %v records.\n", len(resp.Executions))
+		} else if queryParams.queryType == "list-closed" {
+			listOpenReq := &manager.ListWorkflowExecutionsRequest{
+				NamespaceID:       namespace.ID(queryParams.namespaceID),
+				Namespace:         namespace.Name("test"),
+				PageSize:          queryParams.pageSize,
+				EarliestStartTime: queryStart,
+				LatestStartTime:   queryEnd,
+			}
+			_, err = visibilityManager.ListClosedWorkflowExecutions(listOpenReq)
 			//fmt.Printf("Returned %v records.\n", len(resp.Executions))
 		} else if queryParams.queryType == "scan" {
 			_, err = visibilityManager.ScanWorkflowExecutions(request)
