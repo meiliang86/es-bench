@@ -17,9 +17,9 @@ args:
   esPassword: "pass it using command line"
   records: "1200"
   pf: "1"
-  index: "es_bench_v1_hollywood_20"
+  index: "es_bench_v1_hollywood_20_sorted"
   ns: "9cb5b058-961f-4dbb-bde4-f79b735dd580"
-  range: "1d"
+  range: "24h"
   rps: "2"
   type: "list-closed"
 

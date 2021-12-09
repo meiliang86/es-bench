@@ -327,12 +327,17 @@ func buildCLI() *cli.App {
 				recordCount := c.Int("total-records")
 				parallelFactor := c.Int("parallel-factor")
 				queryType := c.String("type")
-				timeRange, err := time.ParseDuration("query-range")
+				timeRange, err := time.ParseDuration(c.String("query-range"))
 				if err != nil {
+					fmt.Printf("failed to parse query range: %v\n", err)
 					return err
 				}
 				rpsLimit := c.Int("rps")
-				b.QueryData(recordCount, parallelFactor, queryType, timeRange, namespaceID, rpsLimit)
+				err = b.QueryData(recordCount, parallelFactor, queryType, timeRange, namespaceID, rpsLimit)
+				if err != nil {
+					fmt.Println(err)
+					return err
+				}
 				<-done
 				return nil
 			},
