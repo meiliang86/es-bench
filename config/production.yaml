@@ -3,17 +3,18 @@ elasticsearch:
   logLevel: "error"
   url:
     scheme: "https"
-    host: "vpc-hollywood-egvqsfkoo5tbou74x7oto6dk5a.us-east-1.es.amazonaws.com"
+    host: "vpc-es-bench-74hq6hbgws6kddcgyhqn53c3om.us-east-1.es.amazonaws.com"
+#    host: "vpc-hollywood-egvqsfkoo5tbou74x7oto6dk5a.us-east-1.es.amazonaws.com"
   username: "temporal"
   password: ""
   indices:
-    visibility: "temporal_es_bench_v1_hollywood_20"
+    visibility: "es_bench_v1_hollywood_sorted"
 
 processor:
   indexConcurrency: 100
-  numOfWorkers: 4
+  numOfWorkers: 1
   bulkActions: 500
-  bulkSize: 65777216
+  bulkSize: 16777216
   flushInterval: 1s
   ackTimeout: 1m
 

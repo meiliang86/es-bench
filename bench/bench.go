@@ -10,7 +10,6 @@ import (
 	"sync"
 	"time"
 
-	"golang.org/x/time/rate"
 	"github.com/temporalio/es-bench/config"
 	"github.com/urfave/cli/v2"
 	"go.temporal.io/server/common/dynamicconfig"
@@ -22,6 +21,7 @@ import (
 	"go.temporal.io/server/common/persistence/visibility/store/elasticsearch/client"
 	"go.temporal.io/server/common/searchattribute"
 	"go.uber.org/atomic"
+	"golang.org/x/time/rate"
 	"gopkg.in/yaml.v3"
 )
 
@@ -42,7 +42,7 @@ type Bench struct {
 	rateLimiter *rate.Limiter
 }
 
-func (b *Bench) IngestData(recordCount int, parallelFactor int, namespaceID string) error {
+func (b *Bench) IngestData(recordCount int, parallelFactor int, namespaceID string, rpsLimit int) error {
 	if b.indexName == "" {
 		indexSuffix := randString(5)
 		b.indexName = fmt.Sprintf("%s_%s", b.cfg.Elasticsearch.Indices[client.VisibilityAppName], indexSuffix)
@@ -51,12 +51,14 @@ func (b *Bench) IngestData(recordCount int, parallelFactor int, namespaceID stri
 	//if err := b.createIndex(); err != nil {
 	//	return cli.Exit(err, 1)
 	//}
-	fmt.Println("Created indexName", b.indexName)
+	// fmt.Println("Created indexName", b.indexName)
 
 	visibilityManager, err := b.newVisibilityManager()
 	if err != nil {
 		return cli.Exit(fmt.Sprintf("unable to create Elasticsearch visibility manager: %v", err), 1)
 	}
+
+	b.rateLimiter = rate.NewLimiter(rate.Limit(rpsLimit), 100)
 
 	start := time.Now()
 	wg := &sync.WaitGroup{}
@@ -101,10 +103,12 @@ func (b *Bench) ingestionLoop(
 	errCount *atomic.Int32,
 	namespaceID string,
 ) {
+	time.Sleep(time.Duration(rand.Intn(1000)) * time.Millisecond)
+
 	var lastStartReq *manager.RecordWorkflowExecutionStartedRequest
 	for taskID := 0; taskID < taskCount; taskID++ {
 		requestCount.Inc()
-		if lastStartReq != nil && rand.Intn(10) < 1 {
+		if lastStartReq != nil && rand.Intn(10) < 3 {
 			for {
 				err1 := deleteWorkflow(visibilityManager, lastStartReq)
 				if err1 != nil {
@@ -116,14 +120,15 @@ func (b *Bench) ingestionLoop(
 				}
 			}
 		} else {
+			b.rateLimiter.Wait(context.Background())
 			request := generateRecordWorkflowExecutionStartedRequest(shardID, taskID, namespaceID)
 
 			for {
 				// Emulate task processor which retries forever.
 				err1 := visibilityManager.RecordWorkflowExecutionStarted(request)
 				if err1 != nil {
-					fmt.Printf("failed to create ES record: %v", err1)
-					time.Sleep(time.Second)
+					b.logger.Debug(fmt.Sprintf("failed to create ES record: %v", err1))
+					// time.Sleep(time.Second)
 					errCount.Inc()
 				} else {
 					break
@@ -131,10 +136,40 @@ func (b *Bench) ingestionLoop(
 			}
 
 			lastStartReq = request
-		}
 
-		//// Emulate real load, not constant load. Add 2-4 seconds delay.
-		//time.Sleep(time.Duration(rand.Intn(1000)+2000) * time.Millisecond)
+			upsertRequest := &manager.UpsertWorkflowExecutionRequest{
+				VisibilityRequestBase: request.VisibilityRequestBase,
+			}
+			upsertRequest.StateTransitionCount++
+			for {
+				// Emulate task processor which retries forever.
+				err1 := visibilityManager.UpsertWorkflowExecution(upsertRequest)
+				if err1 != nil {
+					b.logger.Debug(fmt.Sprintf("failed to upsert ES record: %v", err1))
+					// time.Sleep(time.Second)
+					errCount.Inc()
+				} else {
+					break
+				}
+			}
+
+			closeRequest := &manager.RecordWorkflowExecutionClosedRequest{
+				VisibilityRequestBase: request.VisibilityRequestBase,
+				CloseTime: time.Now(),
+				HistoryLength: rand.Int63n(1000),
+			}
+			for {
+				// Emulate task processor which retries forever.
+				err1 := visibilityManager.RecordWorkflowExecutionClosed(closeRequest)
+				if err1 != nil {
+					b.logger.Debug(fmt.Sprintf("failed to record closed: %v", err1))
+					// time.Sleep(time.Second)
+					errCount.Inc()
+				} else {
+					break
+				}
+			}
+		}
 
 		select {
 		case <-b.done:

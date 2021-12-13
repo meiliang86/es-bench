@@ -264,6 +264,11 @@ func buildCLI() *cli.App {
 					Name:  "flush-interval",
 					Usage: "FlushInterval config override",
 				},
+				&cli.StringFlag{
+					Name:  "rps",
+					Value: "100",
+					Usage: "rps",
+				},
 			},
 			Action: func(c *cli.Context) error {
 				cfg := loadConfig(c)
@@ -272,7 +277,10 @@ func buildCLI() *cli.App {
 				recordCount := c.Int("total-records")
 				parallelFactor := c.Int("parallel-factor")
 				namespaceID := c.String("namespace-id")
-				return b.IngestData(recordCount, parallelFactor, namespaceID)
+				rpsLimit := c.Int("rps")
+				b.IngestData(recordCount, parallelFactor, namespaceID, rpsLimit)
+				<-done
+				return nil
 			},
 		},
 		{
